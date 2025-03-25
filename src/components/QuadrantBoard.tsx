@@ -240,10 +240,13 @@ const QuadrantBoard: React.FC = () => {
 
     const [newTaskTitle, setNewTaskTitle] = useState('');
 
-    const handleKeyPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter' && newTaskTitle.trim()) {
-        handleAddTask(quadrant.id, newTaskTitle);
-        setNewTaskTitle('');
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (newTaskTitle.trim()) {
+          handleAddTask(quadrant.id, newTaskTitle);
+          setNewTaskTitle('');
+        }
       }
     };
 
@@ -291,7 +294,7 @@ const QuadrantBoard: React.FC = () => {
           placeholder="添加新任务"
           value={newTaskTitle}
           onChange={(e) => setNewTaskTitle(e.target.value)}
-          onKeyDown={handleKeyPress}
+          onKeyPress={handleKeyPress}
           sx={{ mb: 2 }}
         />
         {children}
