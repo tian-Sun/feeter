@@ -207,14 +207,17 @@ const QuadrantBoard: React.FC = () => {
     setEditingTitle(quadrant.title);
   };
 
-  const handleSaveTitle = () => {
-    if (editingTitleId && editingTitle.trim()) {
-      setQuadrants(quadrants.map(q =>
-        q.id === editingTitleId ? { ...q, title: editingTitle.trim() } : q
-      ));
-      setEditingTitleId(null);
-      setEditingTitle('');
-    }
+  const handleSaveTitle = (quadrantId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    setQuadrants(prev =>
+      prev.map(q =>
+        q.id === quadrantId
+          ? { ...q, title: newTitle.trim() }
+          : q
+      )
+    );
+    setEditingTitleId(null);
+    setEditingTitle('');
   };
 
   const handleCancelTitleEdit = () => {
@@ -222,31 +225,77 @@ const QuadrantBoard: React.FC = () => {
     setEditingTitle('');
   };
 
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, quadrantId: string) => {
+    if (e.key === 'Enter') {
+      handleSaveTitle(quadrantId, editingTitle);
+    } else if (e.key === 'Escape') {
+      handleCancelTitleEdit();
+    }
+  };
+
   const DroppableQuadrant = ({ quadrant, children }: { quadrant: Quadrant; children: React.ReactNode }) => {
     const { setNodeRef } = useDroppable({
-      id: `quadrant-${quadrant.id}`,
+      id: quadrant.id,
     });
 
+    const [newTaskTitle, setNewTaskTitle] = useState('');
+
+    const handleKeyPress = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter' && newTaskTitle.trim()) {
+        handleAddTask(quadrant.id, newTaskTitle);
+        setNewTaskTitle('');
+      }
+    };
+
     return (
-      <Box 
+      <Paper
         ref={setNodeRef}
-        id={`quadrant-${quadrant.id}`}
-        sx={{ 
-          minHeight: '100px',
-          padding: 1,
-          transition: 'all 0.2s ease',
-          backgroundColor: activeId && quadrant.tasks.length === 0 ? 'action.hover' : 'transparent',
-          border: activeId ? '2px dashed #ccc' : 'none',
-          borderRadius: 1,
+        elevation={3}
+        sx={{
+          p: 2,
+          height: '100%',
+          backgroundColor: '#fff',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <SortableContext 
-          items={quadrant.tasks.map(t => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {children}
-        </SortableContext>
-      </Box>
+        {editingTitleId === quadrant.id ? (
+          <TextField
+            fullWidth
+            value={editingTitle}
+            onChange={(e) => setEditingTitle(e.target.value)}
+            onKeyDown={(e) => handleTitleKeyDown(e, quadrant.id)}
+            onBlur={() => handleSaveTitle(quadrant.id, editingTitle)}
+            autoFocus
+            size="small"
+            sx={{ mb: 2 }}
+          />
+        ) : (
+          <Typography
+            variant="h6"
+            onClick={() => handleStartTitleEdit(quadrant)}
+            sx={{
+              mb: 2,
+              cursor: 'pointer',
+              '&:hover': {
+                backgroundColor: '#f5f5f5',
+              },
+            }}
+          >
+            {quadrant.title}
+          </Typography>
+        )}
+        <TextField
+          fullWidth
+          size="small"
+          placeholder="添加新任务"
+          value={newTaskTitle}
+          onChange={(e) => setNewTaskTitle(e.target.value)}
+          onKeyDown={handleKeyPress}
+          sx={{ mb: 2 }}
+        />
+        {children}
+      </Paper>
     );
   };
 
@@ -272,72 +321,19 @@ const QuadrantBoard: React.FC = () => {
                     }}
                   >
                     <Box sx={{ mb: 2 }}>
-                      {editingTitleId === quadrant.id ? (
-                        <TextField
-                          size="small"
-                          fullWidth
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              handleSaveTitle();
-                            } else if (e.key === 'Escape') {
-                              handleCancelTitleEdit();
-                            }
-                          }}
-                          onBlur={handleSaveTitle}
-                          autoFocus
-                          variant="standard"
-                          sx={{
-                            mb: 1,
-                            '& .MuiInput-root': {
-                              fontSize: '1.25rem',
-                              fontWeight: 500
-                            }
-                          }}
-                        />
-                      ) : (
-                        <Typography 
-                          variant="h6" 
-                          sx={{ 
-                            mb: 1,
-                            cursor: 'text',
-                            '&:hover': {
-                              backgroundColor: 'action.hover'
-                            }
-                          }}
-                          onClick={() => handleStartTitleEdit(quadrant)}
-                        >
-                          {quadrant.title}
-                        </Typography>
-                      )}
-                      <Box sx={{ mt: 2 }}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          placeholder="添加新任务"
-                          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                            if (e.key === 'Enter') {
-                              const input = e.currentTarget;
-                              handleAddTask(quadrant.id, input.value);
-                              input.value = '';
-                            }
-                          }}
-                        />
-                      </Box>
+                      <DroppableQuadrant quadrant={quadrant}>
+                        {quadrant.tasks.map((task) => (
+                          <TaskItem
+                            key={task.id}
+                            task={task}
+                            onDelete={() => handleDeleteTask(quadrant.id, task.id)}
+                            onToggleComplete={() => handleToggleComplete(quadrant.id, task.id)}
+                            onTitleChange={(newTitle) => handleTaskTitleChange(quadrant.id, task.id, newTitle)}
+                            isDragging={activeId === task.id}
+                          />
+                        ))}
+                      </DroppableQuadrant>
                     </Box>
-                    <DroppableQuadrant quadrant={quadrant}>
-                      {quadrant.tasks.map((task) => (
-                        <TaskItem
-                          key={task.id}
-                          task={task}
-                          onDelete={() => handleDeleteTask(quadrant.id, task.id)}
-                          onToggleComplete={() => handleToggleComplete(quadrant.id, task.id)}
-                          onTitleChange={(newTitle) => handleTaskTitleChange(quadrant.id, task.id, newTitle)}
-                          isDragging={activeId === task.id}
-                        />
-                      ))}
-                    </DroppableQuadrant>
                   </Paper>
                 </Grid>
               ))}
