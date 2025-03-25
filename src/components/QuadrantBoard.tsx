@@ -5,10 +5,7 @@ import {
   DragOverlay,
   useSensor, 
   useSensors, 
-  MouseSensor, 
-  TouchSensor,
-  DragOverEvent,
-  UniqueIdentifier,
+  PointerSensor,
   DragStartEvent,
   defaultDropAnimationSideEffects,
   DropAnimation,
@@ -45,22 +42,16 @@ const QuadrantBoard: React.FC = () => {
     const saved = localStorage.getItem('quadrants');
     return saved ? JSON.parse(saved) : defaultQuadrants;
   });
-  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [newTaskInputs, setNewTaskInputs] = useState<{ [key: string]: string }>({});
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
 
   const sensors = useSensors(
-    useSensor(MouseSensor, {
+    useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 100,
-        tolerance: 8,
       },
     })
   );
@@ -78,15 +69,15 @@ const QuadrantBoard: React.FC = () => {
     setNewTaskInputs(inputs);
   }, []);
 
-  const findContainer = (id: UniqueIdentifier) => {
+  const findContainer = (id: string) => {
     // 如果是象限容器ID
-    if (id.toString().startsWith('quadrant-')) {
-      return id.toString().split('-')[1];
+    if (id.startsWith('quadrant-')) {
+      return id.split('-')[1];
     }
 
     // 如果是任务ID，查找它所在的象限
     for (const quadrant of quadrants) {
-      if (quadrant.tasks.some(task => task.id === id.toString())) {
+      if (quadrant.tasks.some(task => task.id === id)) {
         return quadrant.id;
       }
     }
@@ -95,55 +86,15 @@ const QuadrantBoard: React.FC = () => {
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    setActiveId(active.id);
-    const task = findTask(active.id);
+    setActiveId(active.id.toString());
+    
+    const task = quadrants
+      .flatMap(q => q.tasks)
+      .find(t => t.id === active.id.toString());
+    
     if (task) {
       setActiveTask(task);
     }
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeContainer = findContainer(active.id);
-    let overContainer = findContainer(over.id);
-    
-    if (!activeContainer) return;
-
-    // 如果拖到了空象限
-    if (!overContainer) {
-      const overId = over.id.toString();
-      if (overId.startsWith('quadrant-')) {
-        overContainer = overId.split('-')[1];
-      }
-    }
-    
-    if (!overContainer || activeContainer === overContainer) {
-      return;
-    }
-
-    setQuadrants(prev => {
-      const activeTask = findTask(active.id);
-      if (!activeTask) return prev;
-
-      return prev.map(quadrant => {
-        if (quadrant.id === activeContainer) {
-          return {
-            ...quadrant,
-            tasks: quadrant.tasks.filter(task => task.id !== active.id.toString())
-          };
-        }
-        if (quadrant.id === overContainer) {
-          const updatedTask = { ...activeTask, quadrantId: overContainer };
-          return {
-            ...quadrant,
-            tasks: [...quadrant.tasks, updatedTask]
-          };
-        }
-        return quadrant;
-      });
-    });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -155,126 +106,100 @@ const QuadrantBoard: React.FC = () => {
       return;
     }
 
-    const activeContainer = findContainer(active.id);
-    let overContainer = findContainer(over.id);
-
-    if (!activeContainer) {
-      setActiveId(null);
-      setActiveTask(null);
-      return;
-    }
-
-    // 如果拖到了空象限
-    if (!overContainer) {
-      const overId = over.id.toString();
-      if (overId.startsWith('quadrant-')) {
-        overContainer = overId.split('-')[1];
-      }
-    }
-
-    if (!overContainer) {
-      setActiveId(null);
-      setActiveTask(null);
-      return;
-    }
-
-    if (activeContainer !== overContainer) {
-      setQuadrants(prev => {
-        const activeTask = findTask(active.id);
-        if (!activeTask) return prev;
-
-        const updatedTask = { ...activeTask, quadrantId: overContainer };
-
-        return prev.map(quadrant => {
-          if (quadrant.id === activeContainer) {
+    const activeId = active.id.toString();
+    const overId = over.id.toString();
+    
+    const sourceQuadrant = quadrants.find(q => q.tasks.some(t => t.id === activeId));
+    const targetQuadrant = quadrants.find(q => q.id === overId);
+    
+    if (sourceQuadrant && targetQuadrant) {
+      setQuadrants(prev => prev.map(quadrant => {
+        if (quadrant.id === sourceQuadrant.id) {
+          return {
+            ...quadrant,
+            tasks: quadrant.tasks.filter(t => t.id !== activeId)
+          };
+        }
+        if (quadrant.id === targetQuadrant.id) {
+          const task = sourceQuadrant.tasks.find(t => t.id === activeId);
+          if (task) {
             return {
               ...quadrant,
-              tasks: quadrant.tasks.filter(task => task.id !== active.id.toString())
+              tasks: [...quadrant.tasks, { ...task, quadrantId: targetQuadrant.id }]
             };
           }
-          if (quadrant.id === overContainer) {
-            return {
-              ...quadrant,
-              tasks: [...quadrant.tasks, updatedTask]
-            };
-          }
-          return quadrant;
-        });
-      });
-    } else {
-      const items = quadrants.find(q => q.id === activeContainer)?.tasks || [];
-      const oldIndex = items.findIndex(item => item.id === active.id.toString());
-      const newIndex = items.findIndex(item => item.id === over.id.toString());
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        setQuadrants(prev =>
-          prev.map(quadrant => {
-            if (quadrant.id === activeContainer) {
-              return {
-                ...quadrant,
-                tasks: arrayMove(quadrant.tasks, oldIndex, newIndex)
-              };
-            }
-            return quadrant;
-          })
-        );
-      }
+        }
+        return quadrant;
+      }));
     }
 
     setActiveId(null);
     setActiveTask(null);
   };
 
-  const findTask = (taskId: UniqueIdentifier): Task | undefined => {
-    for (const quadrant of quadrants) {
-      const task = quadrant.tasks.find(t => t.id === taskId.toString());
-      if (task) return task;
-    }
-    return undefined;
+  const handleAddTask = (quadrantId: string, title: string) => {
+    if (!title.trim()) return;
+    
+    const newTask: Task = {
+      id: Date.now().toString(),
+      title: title.trim(),
+      completed: false,
+      quadrantId
+    };
+
+    setQuadrants(prev =>
+      prev.map(quadrant =>
+        quadrant.id === quadrantId
+          ? { ...quadrant, tasks: [...quadrant.tasks, newTask] }
+          : quadrant
+      )
+    );
   };
 
-  const handleAddTask = (quadrantId: string, event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' && newTaskInputs[quadrantId].trim()) {
-      const task: Task = {
-        id: Date.now().toString(),
-        title: newTaskInputs[quadrantId].trim(),
-        completed: false,
-        quadrantId: quadrantId,
-      };
-
-      setQuadrants(quadrants.map(q => 
-        q.id === quadrantId 
-          ? { ...q, tasks: [...q.tasks, task] }
-          : q
-      ));
-
-      // 清空输入
-      setNewTaskInputs({
-        ...newTaskInputs,
-        [quadrantId]: ''
-      });
-    }
+  const handleDeleteTask = (quadrantId: string, taskId: string) => {
+    setQuadrants(prev =>
+      prev.map(quadrant =>
+        quadrant.id === quadrantId
+          ? { ...quadrant, tasks: quadrant.tasks.filter(task => task.id !== taskId) }
+          : quadrant
+      )
+    );
   };
 
-  const handleDeleteTask = (taskId: string, quadrantId: string) => {
-    setQuadrants(quadrants.map(q => 
-      q.id === quadrantId 
-        ? { ...q, tasks: q.tasks.filter(t => t.id !== taskId) }
-        : q
-    ));
+  const handleToggleComplete = (quadrantId: string, taskId: string) => {
+    setQuadrants(prev =>
+      prev.map(quadrant =>
+        quadrant.id === quadrantId
+          ? {
+              ...quadrant,
+              tasks: quadrant.tasks.map(task =>
+                task.id === taskId
+                  ? { ...task, completed: !task.completed }
+                  : task
+              ),
+            }
+          : quadrant
+      )
+    );
   };
 
-  const handleToggleComplete = (taskId: string, quadrantId: string) => {
-    setQuadrants(quadrants.map(q => 
-      q.id === quadrantId 
-        ? {
-            ...q,
-            tasks: q.tasks.map(t =>
-              t.id === taskId ? { ...t, completed: !t.completed } : t
-            )
-          }
-        : q
-    ));
+  const handleTaskTitleChange = (quadrantId: string, taskId: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    
+    setQuadrants(prev =>
+      prev.map(quadrant =>
+        quadrant.id === quadrantId
+          ? {
+              ...quadrant,
+              tasks: quadrant.tasks.map(task =>
+                task.id === taskId
+                  ? { ...task, title: newTitle.trim() }
+                  : task
+              ),
+            }
+          : quadrant
+      )
+    );
   };
 
   const handleStartTitleEdit = (quadrant: Quadrant) => {
@@ -333,7 +258,6 @@ const QuadrantBoard: React.FC = () => {
             sensors={sensors}
             collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <Grid container spacing={2}>
@@ -387,39 +311,29 @@ const QuadrantBoard: React.FC = () => {
                           {quadrant.title}
                         </Typography>
                       )}
-                      <TextField
-                        size="small"
-                        placeholder="添加新任务，按回车保存"
-                        fullWidth
-                        value={newTaskInputs[quadrant.id] || ''}
-                        onChange={(e) => setNewTaskInputs({
-                          ...newTaskInputs,
-                          [quadrant.id]: e.target.value
-                        })}
-                        onKeyPress={(e) => handleAddTask(quadrant.id, e)}
-                      />
+                      <Box sx={{ mt: 2 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="添加新任务"
+                          onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                            if (e.key === 'Enter') {
+                              const input = e.currentTarget;
+                              handleAddTask(quadrant.id, input.value);
+                              input.value = '';
+                            }
+                          }}
+                        />
+                      </Box>
                     </Box>
                     <DroppableQuadrant quadrant={quadrant}>
                       {quadrant.tasks.map((task) => (
                         <TaskItem
                           key={task.id}
                           task={task}
-                          onDelete={() => handleDeleteTask(task.id, quadrant.id)}
-                          onToggleComplete={() => handleToggleComplete(task.id, quadrant.id)}
-                          onTitleChange={(newTitle) => {
-                            setQuadrants(quadrants.map(q =>
-                              q.id === quadrant.id
-                                ? {
-                                    ...q,
-                                    tasks: q.tasks.map(t =>
-                                      t.id === task.id
-                                        ? { ...t, title: newTitle }
-                                        : t
-                                    )
-                                  }
-                                : q
-                            ));
-                          }}
+                          onDelete={() => handleDeleteTask(quadrant.id, task.id)}
+                          onToggleComplete={() => handleToggleComplete(quadrant.id, task.id)}
+                          onTitleChange={(newTitle) => handleTaskTitleChange(quadrant.id, task.id, newTitle)}
                           isDragging={activeId === task.id}
                         />
                       ))}
@@ -434,6 +348,7 @@ const QuadrantBoard: React.FC = () => {
                   task={activeTask}
                   onDelete={() => {}}
                   onToggleComplete={() => {}}
+                  onTitleChange={() => {}}
                   isDragging={true}
                 />
               ) : null}

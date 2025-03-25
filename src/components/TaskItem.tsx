@@ -1,24 +1,31 @@
 import React, { useState } from 'react';
+import { Typography, IconButton, Box, TextField } from '@mui/material';
+import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box, Paper, Typography, IconButton, Checkbox, TextField } from '@mui/material';
-import { Delete as DeleteIcon, DragIndicator } from '@mui/icons-material';
-import { Task } from '../types';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 
-export interface TaskItemProps {
+interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+  quadrantId: string;
+}
+
+interface TaskItemProps {
   task: Task;
-  onDelete: () => void;
-  onToggleComplete: () => void;
-  onTitleChange?: (newTitle: string) => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string) => void;
+  onTitleChange: (id: string, newTitle: string) => void;
   isDragging?: boolean;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ 
-  task, 
-  onDelete, 
-  onToggleComplete, 
+const TaskItem: React.FC<TaskItemProps> = ({
+  task,
+  onDelete,
+  onToggleComplete,
   onTitleChange,
-  isDragging = false 
+  isDragging = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingTitle, setEditingTitle] = useState(task.title);
@@ -29,20 +36,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
     setNodeRef,
     transform,
     transition,
-    isDragging: isSortableDragging,
-  } = useSortable({
-    id: task.id,
-    data: {
-      type: 'task',
-      task,
-    }
-  });
+  } = useSortable({ id: task.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging || isSortableDragging ? 0.5 : undefined,
-    cursor: 'grab',
+    opacity: isDragging ? 0.5 : 1,
   };
 
   const handleStartEdit = (e: React.MouseEvent) => {
@@ -52,13 +51,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   const handleSave = () => {
-    if (editingTitle.trim() && onTitleChange) {
-      onTitleChange(editingTitle.trim());
+    if (editingTitle.trim()) {
+      onTitleChange(task.id, editingTitle.trim());
     }
     setIsEditing(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSave();
     } else if (e.key === 'Escape') {
@@ -67,92 +66,60 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete();
-  };
-
   return (
-    <Paper
+    <Box
       ref={setNodeRef}
       style={style}
       sx={{
-        p: 1,
-        mb: 1,
         display: 'flex',
         alignItems: 'center',
-        backgroundColor: isDragging ? 'action.hover' : 'background.paper',
+        p: 1,
+        borderRadius: 1,
+        bgcolor: 'background.paper',
         '&:hover': {
-          backgroundColor: 'action.hover',
+          bgcolor: 'action.hover',
         },
+        userSelect: 'none',
       }}
-      {...attributes}
-      {...listeners}
     >
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center',
-          color: 'text.secondary',
-          '&:hover': { color: 'primary.main' }
-        }}
-      >
-        <DragIndicator fontSize="small" />
+      <Box {...attributes} {...listeners} sx={{ cursor: 'grab', mr: 1 }}>
+        <DragIndicatorIcon />
       </Box>
-      <Checkbox
-        checked={task.completed}
-        onChange={onToggleComplete}
+      {isEditing ? (
+        <TextField
+          value={editingTitle}
+          onChange={(e) => setEditingTitle(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          size="small"
+          fullWidth
+          autoFocus
+          sx={{ flex: 1 }}
+        />
+      ) : (
+        <Typography
+          onDoubleClick={handleStartEdit}
+          sx={{
+            flex: 1,
+            textDecoration: task.completed ? 'line-through' : 'none',
+            color: task.completed ? 'text.disabled' : 'text.primary',
+            cursor: 'text',
+          }}
+        >
+          {task.title}
+        </Typography>
+      )}
+      <IconButton
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(task.id);
+        }}
         size="small"
-        sx={{ mr: 1 }}
-        onClick={(e) => e.stopPropagation()}
-      />
-      <Box sx={{ flex: 1 }}>
-        {isEditing ? (
-          <TextField
-            fullWidth
-            size="small"
-            value={editingTitle}
-            onChange={(e) => setEditingTitle(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onBlur={handleSave}
-            autoFocus
-            variant="standard"
-            onClick={(e) => e.stopPropagation()}
-            sx={{
-              '& .MuiInput-root': {
-                fontSize: '0.875rem',
-              }
-            }}
-          />
-        ) : (
-          <Typography
-            variant="body2"
-            sx={{
-              textDecoration: task.completed ? 'line-through' : 'none',
-              color: task.completed ? 'text.secondary' : 'text.primary',
-              cursor: 'text',
-              userSelect: 'none',
-              py: 0.5,
-            }}
-            onDoubleClick={handleStartEdit}
-          >
-            {task.title}
-          </Typography>
-        )}
-      </Box>
-      <IconButton 
-        size="small" 
-        onClick={handleDeleteClick}
-        sx={{ 
-          '&:hover': { 
-            color: 'error.main',
-            backgroundColor: 'error.light' 
-          } 
-        }}
+        sx={{ ml: 1 }}
       >
-        <DeleteIcon fontSize="small" />
+        <DeleteIcon />
       </IconButton>
-    </Paper>
+    </Box>
   );
 };
 
