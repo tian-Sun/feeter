@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Typography, IconButton, Box, TextField } from '@mui/material';
+import { Typography, IconButton, Box, TextField, Checkbox } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -85,6 +85,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
       <Box {...attributes} {...listeners} sx={{ cursor: 'grab', mr: 1 }}>
         <DragIndicatorIcon />
       </Box>
+      <Checkbox
+        checked={task.completed}
+        onChange={() => onToggleComplete(task.id)}
+        sx={{ mr: 1 }}
+      />
       {isEditing ? (
         <TextField
           value={editingTitle}
