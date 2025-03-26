@@ -331,7 +331,7 @@ const QuadrantBoard: React.FC = () => {
                             task={task}
                             onDelete={() => handleDeleteTask(quadrant.id, task.id)}
                             onToggleComplete={() => handleToggleComplete(quadrant.id, task.id)}
-                            onTitleChange={(newTitle) => handleTaskTitleChange(quadrant.id, task.id, newTitle)}
+                            onTitleChange={(taskId, newTitle) => handleTaskTitleChange(quadrant.id, taskId, newTitle)}
                             isDragging={activeId === task.id}
                           />
                         ))}
