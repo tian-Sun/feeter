@@ -85,56 +85,66 @@ const QuadrantBoard: React.FC = () => {
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(active.id.toString());
-    
-    const task = quadrants
-      .flatMap(q => q.tasks)
-      .find(t => t.id === active.id.toString());
-    
-    if (task) {
-      setActiveTask(task);
+    try {
+      const { active } = event;
+      setActiveId(active.id.toString());
+      
+      const task = quadrants
+        .flatMap(q => q.tasks)
+        .find(t => t.id === active.id.toString());
+      
+      if (task) {
+        setActiveTask(task);
+      }
+    } catch (error) {
+      console.error('Drag start error:', error);
+      setActiveId(null);
+      setActiveTask(null);
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) {
-      setActiveId(null);
-      setActiveTask(null);
-      return;
-    }
+    try {
+      const { active, over } = event;
+      
+      if (!over) {
+        setActiveId(null);
+        setActiveTask(null);
+        return;
+      }
 
-    const activeId = active.id.toString();
-    const overId = over.id.toString();
-    
-    const sourceQuadrant = quadrants.find(q => q.tasks.some(t => t.id === activeId));
-    const targetQuadrant = quadrants.find(q => q.id === overId);
-    
-    if (sourceQuadrant && targetQuadrant) {
-      setQuadrants(prev => prev.map(quadrant => {
-        if (quadrant.id === sourceQuadrant.id) {
-          return {
-            ...quadrant,
-            tasks: quadrant.tasks.filter(t => t.id !== activeId)
-          };
-        }
-        if (quadrant.id === targetQuadrant.id) {
-          const task = sourceQuadrant.tasks.find(t => t.id === activeId);
-          if (task) {
+      const activeId = active.id.toString();
+      const overId = over.id.toString();
+      
+      const sourceQuadrant = quadrants.find(q => q.tasks.some(t => t.id === activeId));
+      const targetQuadrant = quadrants.find(q => q.id === overId);
+      
+      if (sourceQuadrant && targetQuadrant) {
+        setQuadrants(prev => prev.map(quadrant => {
+          if (quadrant.id === sourceQuadrant.id) {
             return {
               ...quadrant,
-              tasks: [...quadrant.tasks, { ...task, quadrantId: targetQuadrant.id }]
+              tasks: quadrant.tasks.filter(t => t.id !== activeId)
             };
           }
-        }
-        return quadrant;
-      }));
+          if (quadrant.id === targetQuadrant.id) {
+            const task = sourceQuadrant.tasks.find(t => t.id === activeId);
+            if (task) {
+              return {
+                ...quadrant,
+                tasks: [...quadrant.tasks, { ...task, quadrantId: targetQuadrant.id }]
+              };
+            }
+          }
+          return quadrant;
+        }));
+      }
+    } catch (error) {
+      console.error('Drag end error:', error);
+    } finally {
+      setActiveId(null);
+      setActiveTask(null);
     }
-
-    setActiveId(null);
-    setActiveTask(null);
   };
 
   const handleAddTask = (quadrantId: string, title: string) => {
